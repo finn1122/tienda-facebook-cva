@@ -16,3 +16,23 @@ use Illuminate\Support\Facades\Route;
 Route::get('/', function () {
     return view('welcome');
 });
+
+Route::middleware([
+    'auth:sanctum',
+    config('jetstream.auth_session'),
+    'verified'
+])->group(function () {
+    Route::get('/dashboard', function () {
+        return view('dashboard');
+    })->name('dashboard');
+
+    Route::get('/products/index', function () {
+        return view('products/index');
+    })->name('products');
+
+    Route::get('/products',[App\Http\Controllers\ProductController::class,'getAllProducts'])->name('products.getAllProducts');
+    //Route::get('/user/{id}', [UserController::class, 'show']);
+
+
+
+});
