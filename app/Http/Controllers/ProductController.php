@@ -5,12 +5,13 @@ namespace App\Http\Controllers;
 use App\Models\Brand;
 use App\Models\Group;
 use App\Models\Product;
-use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Exception;
+use Illuminate\Support\Facades\DB;
+
 
 class ProductController extends Controller
 {
@@ -34,17 +35,21 @@ class ProductController extends Controller
         ]);
     }
 
-    public function getAllProducts(): JsonResponse
+    public function getAllProducts()
     {
         Log::info('getAllProducts');
         //ALL PRODUCTS https://www.grupocva.com/catalogo_clientes_xml/lista_precios.xml?cliente=64302&marca=%&grupo=%&clave=%&codigo=%
         //ALL PHP PRODUCT https://www.grupocva.com/catalogo_clientes_xml/lista_precios.xml?cliente=64302&marca=HP&grupo=%&clave=%&codigo=%
+        $products = 0;
+        $flash_banner_color = 'danger';
 
         try{
             $xml_response = Http::get('https://www.grupocva.com/catalogo_clientes_xml/lista_precios.xml?cliente=64302&marca=HP&grupo=%&clave=%&codigo=%');
 
             $response = simplexml_load_string($xml_response);
             $json_response = json_decode(json_encode($response));
+
+            DB::beginTransaction();
 
             foreach ($json_response->item as $array_product){
                 if(isset($array_product->marca)){
@@ -62,7 +67,7 @@ class ProductController extends Controller
                     );
                 }
 
-                if(isset($brand->id) && isset($group->id)){
+                if(isset($brand->id) && isset($group->id) && $array_product->disponible > 0){
                     //[SAVE ALL PRODUCTS]
                     $product = new Product();
                     $product->sku          = isset($array_product->codigo_fabricante);
@@ -78,15 +83,20 @@ class ProductController extends Controller
                     $product->save();
                 }
             }
-            Log::debug('success');
+            DB::commit();
+            $products = Product::all()->count();
+            $flash_banner_color = 'success';
         }catch (Exception $e){
+            DB::rollBack();
             Log::debug($e->getMessage());
-            Log::debug($xml_response->body());
-            return response()->json(['error' => $xml_response->body()], $xml_response->status());
-
         }
-        return response()->json(['message' => 'success'], 200);
 
+        $products = $products > 0 ? $products : 0;
+
+        session()->flash('flash.banner', 'Se han agregado: '.$products.' productos.');
+        session()->flash('flash.bannerStyle', $flash_banner_color);
+
+        return redirect()->back();
     }
 
     public function updateAllProducts(): JsonResponse{
